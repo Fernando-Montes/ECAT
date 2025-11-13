@@ -62,67 +62,60 @@ def prepareCOSYchanges(params, values):
         for i in range(len(params)):
             cosyFile = cosyFile + params[i]['elem']
             if params[i]['par'] == 'Roll':
-                cosyFile = cosyFile + "R" + str(f"{values[i]:.5f}")
-                text = cosy_lines[ params[i]['elem'] ][ 'Roll' ]['text1'] + \
-                   str(cosy_lines[ params[i]['elem'] ][ 'Roll' ]['nom']+values[i]) + \
+                cosyFile = cosyFile + "R" + str(f"{1000*values[i]:.1f}")
+                val = cosy_lines[ params[i]['elem'] ][ 'Roll' ]['nom']+values[i]
+                text = cosy_lines[ params[i]['elem'] ][ 'Roll' ]['text1'] + f"{val:.6f}" + \
                        cosy_lines[ params[i]['elem'] ][ 'Roll' ]['text2']
                 cosyChanges.append( [ cosy_lines[ params[i]['elem'] ][ 'Roll' ]['line'][0] , text] )
-                text = cosy_lines[ params[i]['elem'] ][ 'Roll' ]['text1'] + \
-                   str(-cosy_lines[ params[i]['elem'] ][ 'Roll' ]['nom']-values[i]) + \
+                text = cosy_lines[ params[i]['elem'] ][ 'Roll' ]['text1'] + f"{-val:.6f}" + \
                        cosy_lines[ params[i]['elem'] ][ 'Roll' ]['text2']
                 cosyChanges.append( [ cosy_lines[ params[i]['elem'] ][ 'Roll' ]['line'][1] , text] )
             elif params[i]['par'] == 'dist':
-                cosyFile = cosyFile + "d" + str(f"{values[i]:.5f}")
-                text = cosy_lines[ params[i]['elem'] ][ 'dist' ]['text1'] + \
-                   str(cosy_lines[ params[i]['elem'] ][ 'dist' ]['nom'][0]+values[i]) + \
+                cosyFile = cosyFile + "d" + str(f"{1000*values[i]:.1f}")
+                val = cosy_lines[ params[i]['elem'] ][ 'dist' ]['nom'][0]+values[i]
+                text = cosy_lines[ params[i]['elem'] ][ 'dist' ]['text1'] + f"{val:.6f}" + \
                        cosy_lines[ params[i]['elem'] ][ 'dist' ]['text2']
                 cosyChanges.append( [ cosy_lines[ params[i]['elem'] ][ 'dist' ]['line'][0] , text] )
-                text = cosy_lines[ params[i]['elem'] ][ 'dist' ]['text1'] + \
-                   str(cosy_lines[ params[i]['elem'] ][ 'dist' ]['nom'][1]-values[i]) + \
+                text = cosy_lines[ params[i]['elem'] ][ 'dist' ]['text1'] + f"{-val:.6f}" + \
                        cosy_lines[ params[i]['elem'] ][ 'dist' ]['text2']
                 cosyChanges.append( [ cosy_lines[ params[i]['elem'] ][ 'dist' ]['line'][1] , text] )
             elif params[i]['par'] == 'B_SC':
-                cosyFile = cosyFile + "B" + str(f"{values[i]:.5f}")
-                text = cosy_lines[ params[i]['elem'] ][ 'B_SC' ]['text1'] + \
-                   str(cosy_lines[ params[i]['elem'] ][ 'B_SC' ]['nom']+values[i]) + \
+                cosyFile = cosyFile + "B" + str(f"{100*values[i]:.1f}")
+                val = cosy_lines[ params[i]['elem'] ][ 'B_SC' ]['nom']+values[i]
+                text = cosy_lines[ params[i]['elem'] ][ 'B_SC' ]['text1'] + f"{val:.6f}" + \
                        cosy_lines[ params[i]['elem'] ][ 'B_SC' ]['text2']
                 cosyChanges.append( [ cosy_lines[ params[i]['elem'] ][ 'B_SC' ]['line'] , text] )
             elif params[i]['par'] == 'X':
-                cosyFile = cosyFile + "X" + str(f"{values[i]:.5f}")
-                text = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text1'] + \
-                   str(cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][0]+values[i]) + " " + \
-                   str(cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][1]) + \
+                cosyFile = cosyFile + "X" + str(f"{1000*values[i]:.1f}")
+                val1 = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][0]+values[i]
+                val2 = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][1]
+                text = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text1'] + f"{val1:.6f}" + " " + f"{val2:.6f}"  + \
                        cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text2']
                 cosyChanges.append( [ cosy_lines[ params[i]['elem'] ][ 'dXY' ]['line'][0] , text] )
-                text = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text1'] + \
-                   str(-cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][0]-values[i]) + " " + \
-                   str(-cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][1]) + \
+                text = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text1'] + f"{-val1:.6f}" + " " + f"{-val2:.6f}"  + \
                        cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text2']
                 cosyChanges.append( [ cosy_lines[ params[i]['elem'] ][ 'dXY' ]['line'][1] , text] )
             elif params[i]['par'] == 'Y':
-                cosyFile = cosyFile + "Y" + str(f"{values[i]:.5f}")
-                text = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text1'] + \
-                   str(cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][0]) + " " + \
-                   str(cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][1]+values[i]) + \
+                cosyFile = cosyFile + "Y" + str(f"{1000*values[i]:.1f}")
+                val1 = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][0]
+                val2 = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][1]+values[i]
+                text = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text1'] + f"{val1:.6f}" + " " + f"{val2:.6f}"  + \
                        cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text2']
                 cosyChanges.append( [ cosy_lines[ params[i]['elem'] ][ 'dXY' ]['line'][0] , text] )
-                text = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text1'] + \
-                   str(-cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][0]) + " " + \
-                   str(-cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][1]-values[i]) + \
+                text = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text1'] + f"{-val1:.6f}" + " " + f"{-val2:.6f}"  + \
                        cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text2']
                 cosyChanges.append( [ cosy_lines[ params[i]['elem'] ][ 'dXY' ]['line'][1] , text] )
             elif params[i]['par'] == 'XY':
-                cosyFile = cosyFile + str(f"X{values[i][0]:.4f}Y{values[i][1]:.5f}")
-                text = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text1'] + \
-                   str(cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][0]+values[i][0]) + " " + \
-                   str(cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][1]+values[i][1]) + \
+                cosyFile = cosyFile + str(f"X{1000*values[i][0]:.1f}Y{1000*values[i][1]:.1f}")
+                val1 = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][0]+values[i][0]
+                val2 = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][1]+values[i][1]
+                text = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text1'] + f"{val1:.6f}" + " " + f"{val2:.6f}"  + \
                        cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text2']
                 cosyChanges.append( [ cosy_lines[ params[i]['elem'] ][ 'dXY' ]['line'][0] , text] )
-                text = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text1'] + \
-                   str(-cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][0]-values[i][0]) + " " + \
-                   str(-cosy_lines[ params[i]['elem'] ][ 'dXY' ]['nom'][1]-values[i][1]) + \
+                text = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text1'] + f"{-val1:.6f}" + " " + f"{-val2:.6f}"  + \
                        cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text2']
                 cosyChanges.append( [ cosy_lines[ params[i]['elem'] ][ 'dXY' ]['line'][1] , text] )
+    cosyFile = cosyFile[-30:]     # Did this since COSY has a max number of characters to read a cosy file name
     return cosyChanges, cosyFile
 
 # Function that creates COSY file if needed
@@ -468,14 +461,13 @@ def compute_transmission(transmitted_x, n_positions):
     return percentages
 
 # MAIN function to run ecat simulation
-def runECAT(initialDistribution = None, run_cosy_flag = False, tuneChanges = None, save_rays_flag = False, final_index = element_names_stripped.index('DSSD') ):
+def runECAT(initialDistribution = None, run_cosy_flag = False, foxFile = fox_file, tuneChanges = None, save_rays_flag = False, final_index = element_names_stripped.index('DSSD') ):
     '''
     run_cosy_flag = False or True :  Flag to determine if COSY should be run and the matrices processed for the provided fox file
     save_rays_flag = True or False : Can optionally save ray coordinates to a pkl file for further analysis
     final_index  : Run ecat until this beamline element
     tuneChanges = [ ['Q1', 'Roll', -0.08], ['B1 Exit', 'dE', 0.01] ]
     '''
-    flagDelete = False
 
     # LOAD BEAMLINE GEOMETRY
     with open(beamline_geometry, 'rb') as f:
@@ -497,14 +489,15 @@ def runECAT(initialDistribution = None, run_cosy_flag = False, tuneChanges = Non
             process_fort_files(f"{cosyFile}")
             df, grouped_data_frames = load_optics_data(cosyFile, pkl_directory)
             flagDelete = True
+            foxFile = cosyFile
         else:
-            run_cosy_and_save_fort(f"./cosy {fox_file}.fox", f"{matrix_file}")
-            process_fort_files(f"{matrix_file}")
+            run_cosy_and_save_fort(f"./cosy {foxFile}.fox", f"{foxFile}")
+            process_fort_files(f"{foxFile}")
             # Unpack df and grouped_data_frames that contain the transformation matrices
             df, grouped_data_frames = load_optics_data(matrix_file, pkl_directory)
     else:
         # Unpack df and grouped_data_frames that contain the transformation matrices
-        df, grouped_data_frames = load_optics_data(matrix_file, pkl_directory)
+        df, grouped_data_frames = load_optics_data(foxFile, pkl_directory)
 
     # DEFINE INITIAL RAYS
     rays = generateInitialDistribution(initialDistribution)
@@ -528,10 +521,6 @@ def runECAT(initialDistribution = None, run_cosy_flag = False, tuneChanges = Non
     # rate = percentages[-1]
     # print("Final Transmission Rate: ", rate, "%")
 
-    if flagDelete:
-        os.system(f"rm -rf {matrix_directory}/{cosyFile}")
-        os.system(f"rm -rf {pkl_directory}/{cosyFile}.pkl")
-
     # Can optionally save ray coordinates
     if save_rays_flag:
         if run_cosy_flag and len(cosyChanges) != 0 :
@@ -542,7 +531,7 @@ def runECAT(initialDistribution = None, run_cosy_flag = False, tuneChanges = Non
             pickle.dump((all_x, all_ax, all_y, all_ay, all_dE, transmitted_x, transmitted_y, transmission_indices), f)
         print("Data is saved")
 
-    return all_x, all_ax, all_y, all_ay, all_dE, transmitted_x, transmitted_y, transmission_indices, chamber_names, beampipes
+    return all_x, all_ax, all_y, all_ay, all_dE, transmitted_x, transmitted_y, transmission_indices, chamber_names, beampipes, foxFile
 
 ###########################################
 ########## FOR PLOTTING PURPOSES ##########
@@ -771,7 +760,7 @@ def plot_rays(x_list, y_list, z_coordinates, element_names = None, highlight_foc
 def plotInterestingCS(displaySec, section, all_x, all_y, transmission_indices, saveFile = None):
 
     nuRow = 2
-    nuCol = 5
+    nuCol = 2
     fig, axs = plt.subplots(nuRow, nuCol, figsize=(17,9))
     plt.suptitle("Viewing with the beam", fontsize=16)
 

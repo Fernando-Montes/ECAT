@@ -8,7 +8,10 @@ import multiprocessing as mp
 from functools import partial
 import corner
 
-from config import viewers, element_names_stripped, results_directory
+from config import (
+    viewers, element_names_stripped, results_directory,                      # Defines system geometry
+    fox_file, matrix_directory, pkl_directory
+)
 from helper_functions import runECAT
 
 groupsInfo = {
@@ -102,12 +105,15 @@ groupsInfo = {
 # Dictionary that sets the max. variance a given type of parameter can possibly have (to be used as bounds in the
 # parameter optimization
 bounds = {
-    'mu_y' : [-0.006, 0.006],  # +- 6mrad
-    'Roll' : [-0.003, 0.003],  # +-1.1deg rotation around beam axis
-    'dXY'  : [-0.001, 0.001],  # +-1mm
-    'B_SC' : [-0.003, 0.003],  # +-0.3% field
-    'dist' : [-0.003, 0.003],  # +-3mm
-    'dB'   : [-0.011, 0.011],  # Possible miscalibration +-1.1% according to 2024 tuning
+    'mu_y' : [-0.006, 0.006],    # +- 6mrad     Initial distribution
+    'mu'   : [1.9/100, 2.1/100], # 2+-0.1%    mean dE/E Initial distribution
+    'sigma': [5/100, 11/100],    # 8+-3%      sigma dE/E Initial distribution
+    'Roll' : [-0.003, 0.003],    # +-1.1deg rotation around beam axis
+    'X'    : [-0.001, 0.001],    # +-1mm
+    'Y'    : [-0.001, 0.001],    # +-1mm
+    'B_SC' : [-0.03, 0.03],      # +-3.0% field
+    'dist' : [-0.003, 0.003],    # +-3mm
+    'dB'   : [-0.011, 0.011],    # Possible miscalibration +-1.1% according to 2024 tuning
 }
 
 # Trouble shooting... can be deleted
@@ -176,7 +182,9 @@ def load_projection(imagesByGroup, group_number, all_x = None, all_y = None, tra
             x_scale = x_bins/len(x_pos)
             x_intensityC = [i*x_scale for i in x_intensity]
             x_intensityC_sum = np.sum(x_intensityC)
-            x_intensityC = [max(1, round(100*x_bins*i/x_intensityC_sum)) for i in x_intensityC]   # Scale binned viewer so sum is 100*x_bins
+            x_intensityC = [max(0, round(100*x_bins*i/x_intensityC_sum)) for i in x_intensityC]   # Scale binned viewer so sum is 100*x_bins
+            x_intensityC[0] = max(1, x_intensityC[0] )                                            # Making sure the extrems are included
+            x_intensityC[-1] = max(1, x_intensityC[-1] )                                          # Making sure the extrems are included
             x_intensity  = [100*x_bins*i/x_intensityC_sum for i in x_intensity]                   # Scale orig viewer so agrees with binned
             x_vd = [ p for p,n in zip(x_pos, x_intensityC) for _ in range(n) ]                    # list of positions to be histogrammed
 
@@ -184,7 +192,9 @@ def load_projection(imagesByGroup, group_number, all_x = None, all_y = None, tra
             y_scale = y_bins/len(y_pos)
             y_intensityC = [i*y_scale for i in y_intensity]
             y_intensityC_sum = np.sum(y_intensityC)
-            y_intensityC = [max(1, round(100*y_bins*i/y_intensityC_sum)) for i in y_intensityC]   # Scale binned viewer so sum is 100*y_bins
+            y_intensityC = [max(0, round(100*y_bins*i/y_intensityC_sum)) for i in y_intensityC]   # Scale binned viewer so sum is 100*y_bins
+            y_intensityC[0] = max(1, y_intensityC[0] )                                            # Making sure the extrems are included
+            y_intensityC[-1] = max(1, y_intensityC[-1] )                                          # Making sure the extrems are included
             y_intensity  = [100*y_bins*i/y_intensityC_sum for i in y_intensity]                   # Scale orig viewer so agrees with binned
             y_vd = [ p for p,n in zip(y_pos, y_intensityC) for _ in range(n) ]                    # list of positions to be histogrammed
 
@@ -198,7 +208,7 @@ def load_projection(imagesByGroup, group_number, all_x = None, all_y = None, tra
                     valid_indices = []
                     for i in range(len(all_x)):
                         if transmission_indices[i] >= posV \
-                          and groupsInfo[group_number]['fp1_slits']["slits_mm"][0] <= all_x[i][posS]*1000 <= groupsInfo[group_number]['fp1_slits']["slits_mm"][1]:
+                          and groupsInfo[group_number]['fp1_slits']["slits_mm"][0] <= -all_x[i][posS]*1000 <= groupsInfo[group_number]['fp1_slits']["slits_mm"][1]:
                             valid_indices.append(i)
                             x.append( -all_x[i][posV]*1000 )
                     x = np.array(x)
@@ -215,7 +225,11 @@ def load_projection(imagesByGroup, group_number, all_x = None, all_y = None, tra
                 # Calculating chi-square
                 viewer_counts, edges = np.histogram(x_vd, bins=x_bins)
                 ecat_counts, edges = np.histogram(x, bins=x_edges, weights=np.full(len(x), x_scale))
-                chisq_x = np.sum( [ (viewer_counts[i]-ecat_counts[i])**2 for i in range(len(viewer_counts)) ] )/np.sum(viewer_counts)
+
+                if np.abs(np.mean(x) - np.mean(x_vd)) > np.max(x_pos): # if ECAT mean minus viewer mean is more than size of the viewer
+                    chisq_x = np.inf
+                else:
+                    chisq_x = np.sum( [ (viewer_counts[i]-ecat_counts[i])**2 for i in range(len(viewer_counts)) ] )/np.sum(viewer_counts)
 
             if all_y is not None and all_x is not None:
                 # Find position index using viewer
@@ -299,7 +313,10 @@ def load_projection(imagesByGroup, group_number, all_x = None, all_y = None, tra
             else:
                 plt.show()
         if metric == 'chisq_1d':
-            metric_value = metric_value + chisq_x + chisq_y
+            if (group_number == "10" and viewer == "1783") or (group_number == "14" and viewer == "1783"):
+                metric_value = metric_value + chisq_x
+            else:
+                metric_value = metric_value + chisq_x + chisq_y
 
     return metric_value
 
@@ -309,8 +326,8 @@ def countSECARparams(params):
     pbounds = []
     for p in params:
         if p['par'] == 'XY':
-            pbounds.append(bounds['dXY'])
-            pbounds.append(bounds['dXY'])
+            pbounds.append(bounds['X'])
+            pbounds.append(bounds['Y'])
             count += 2
         else:
             pbounds.append(bounds[p['par']])
@@ -366,32 +383,47 @@ def log_prior(theta, pbounds):
 def log_posterior(theta, params, pbounds, images2compare):
     if log_prior(theta, pbounds) == 0:
         try:
+            TEMPERATURE = 160000.0
             values = convert_theta_to_values(params, theta)
+            # tuneChangesPrev = [['Q1', 'Y', -0.000346253403085111], ['Q1', 'B_SC', 0.012213815413722453], ['Q2', 'Y', -0.0004883738170837214], ['Q2', 'B_SC', 0.014579957615870023], ['B2 Exit', 'dB', -0.0029242376594304244], ['Q3', 'B_SC', 0.00455452181737245], ['Q4', 'B_SC', 0.0028608744765512744], ['Q5', 'B_SC', -0.02148827880573774]]
+            # tuneChangesPrev = [['Q1', 'Y', -0.0004005534288656388], ['Q1', 'B_SC', 0.01016527258784548], ['Q2', 'Y', -0.0005769743274796191], ['Q2', 'B_SC', -0.006159636853166115 ], ['Q3', 'B_SC', 0.00036907811424478215], ['Q4', 'B_SC', -0.013252101342486288], ['Q5', 'B_SC', 0.006975071308727706], ['B3 Exit', 'dB', +0.01], ['B4 Exit', 'dB', +0.01], ['Q6', 'B_SC', -0.026865801259426076], ['Q7', 'B_SC', -0.006350239818653578], ['WF1 Exit', 'dB', -0.0125] ]
+            tuneChangesPrev = [['Q1', 'Y', -0.0004005534288656388], ['Q1', 'B_SC', 0.01016527258784548], ['Q2', 'Y', -0.0005769743274796191], ['Q2', 'B_SC', -0.006159636853166115 ], ['Q3', 'B_SC', 0.00036907811424478215], ['Q4', 'B_SC', -0.013252101342486288], ['Q5', 'B_SC', 0.006975071308727706], ['B3 Exit', 'dB', +0.01], ['B4 Exit', 'dB', +0.01], ['Q6', 'B_SC', -0.026865801259426076], ['Q7', 'B_SC', -0.006350239818653578], ['WF1 Exit', 'dB', -0.0125], \
+                            ['B5 Exit', 'dB', -0.005], ['B6 Exit', 'dB', -0.005], ['WF2 Exit', 'dB', -0.005]]
             tuneChanges, initialDistChanges, run_cosy_flag = prepareMCChanges(params, values)
+            tuneChanges = tuneChangesPrev + tuneChanges
             metric = 0
+            cosyFile = fox_file
             for groupImages in images2compare:
                 group = groupImages[0]
                 imagesByGroup = groupImages[1]
                 initialDistribution = { 'type': 'aperture',   # Generates nRays originating from a circular target and determines which are transmitted through a circular downstream aperture.
-                                        'nRays': 5,
+                                        'nRays': 7000,
                                         'target_alignment' :   {"X": groupsInfo[group]['target_alignment']['X'], "Y": groupsInfo[group]['target_alignment']['Y'], "R": groupsInfo[group]['target_alignment']['R']},
                                         'aperture_alignment' : {"X": groupsInfo[group]['pp_alignment']['X'], "Y": groupsInfo[group]['pp_alignment']['Y'], "R": groupsInfo[group]['pp_alignment']['R'], 'separation_distance': 0.48619},
-                                        'angles' : {'mu_x' : -0.12/1000, 'mu_y' : 0/1000, 'sigma' : 10.24/1000},    # mu_y = 15 mrad
-                                        'dE' : {'option': 'normal', 'param' : {'mu':  2/100, 'sigma': 8/100}},      # 2, 8
+                                        'angles' : {'mu_x' : -0.12/1000, 'mu_y' : 0.0043393, 'sigma' : 10.24/1000},    # mu_y = 15 mrad
+                                        'dE' : {'option': 'normal', 'param' : {'mu':  0.020249, 'sigma': 0.077522}},      # 2, 8
                                         'dZ' : {'option': 'fixed',  'param': 0}, }
-                if len(initialDistChanges) != 0:  # Make changes to initialDistribution if needed
-                    initialDistribution['angles']['mu_y'] = initialDistChanges[0][1]
-                all_x, all_ax, all_y, all_ay, all_dE, transmitted_x, transmitted_y, transmission_indices, chamber_names, beampipes = \
-                    runECAT( initialDistribution = initialDistribution, run_cosy_flag = run_cosy_flag, tuneChanges = tuneChanges,
-                        save_rays_flag = False, final_index = viewers[f"{np.max( [int(v) for v in imagesByGroup] )}"]["index"] )
-
+                for initDist in initialDistChanges:  # Make changes to initialDistribution if needed
+                    if initDist[0] == 'mu_y':
+                        initialDistribution['angles']['mu_y'] = initDist[1]
+                    elif initDist[0] == 'mu':
+                        initialDistribution['dE']['param']['mu'] = initDist[1]
+                    elif initDist[0] == 'sigma':
+                        initialDistribution['dE']['param']['sigma'] = initDist[1]
+                all_x, all_ax, all_y, all_ay, all_dE, transmitted_x, transmitted_y, transmission_indices, chamber_names, beampipes, cosyFile = \
+                    runECAT( initialDistribution = initialDistribution, run_cosy_flag = run_cosy_flag, foxFile = cosyFile, tuneChanges = tuneChanges,
+                        save_rays_flag = False, final_index = viewers[f"{max(int(n) for _, nums in images2compare for n in nums)}"]["index"] )
+                run_cosy_flag = False # Only needs to run cosy once for every MCMC iteration
                 metric = metric + load_projection(imagesByGroup, group, all_x = all_x, all_y = all_y, transmission_indices = transmission_indices,
                     plot = False, metric = 'chisq_1d')
-            return -metric
+            if cosyFile != fox_file:
+                os.system(f"rm -rf {matrix_directory}/{cosyFile}")
+                os.system(f"rm -rf {pkl_directory}/{cosyFile}.pkl")
+            return -metric/TEMPERATURE
         except Exception:
             return -np.inf
     else:
-        return -np.inf
+        return log_prior(theta, pbounds)
 
 # class created so multiprocessing can work more efficiently: restart processes
 # that hang and after a certain number of tasks (prevents memory leaks)
@@ -440,7 +472,7 @@ def optimizeMCMC(params, images2compare, fresh_start = True):
 
     # --- Run MCMC ---
     ndim, pbounds = countSECARparams(params)
-    nwalkers, nsteps = 12, 20
+    nwalkers, nsteps = 26, 2000
 
     if fresh_start:
         os.system(f"rm -f chain.h5")
@@ -455,58 +487,10 @@ def optimizeMCMC(params, images2compare, fresh_start = True):
     nprocs = max(1, mp.cpu_count() - 1)
 
     # Per-eval timeout (seconds) and periodic worker restarts
-    EVAL_TIMEOUT = 120          # ~2–3× typical runECAT time
+    EVAL_TIMEOUT = 240          # ~2–3× typical runECAT time
     MAXTASKS_PER_CHILD = 200    # restart workers every ~200 tasks
     with TimedRestartingPool(processes=nprocs,timeout=EVAL_TIMEOUT, maxtasksperchild=MAXTASKS_PER_CHILD, start_method="spawn") as pool:
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, logp, backend=backend, pool=pool)
+        #moves = [ (emcee.moves.StretchMove(a=1.5), 0.5), (emcee.moves.DEMove(gamma0=0.8), 0.3), (emcee.moves.KDEMove(), 0.2),]
+        moves = [(emcee.moves.StretchMove(a=2.0), 0.7), (emcee.moves.DEMove(gamma0=0.8), 0.3)]
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, logp, backend=backend, moves=moves, pool=pool)
         sampler.run_mcmc(p0, nsteps, progress=True)
-
-    # --- Extract samples (discard burn-in, thin a bit) ---
-    burn = nsteps // 2
-    thin = 1
-    flat = sampler.get_chain(discard=burn, thin=thin, flat=True)          # (Nsamples, ndim)
-    logp = sampler.get_log_prob(discard=burn, thin=thin, flat=True)       # (Nsamples,)
-    if flat.size == 0:
-        raise RuntimeError("No samples left after burn/thin. Increase nsteps or reduce burn/thin.")
-
-    # Posterior medians and 16/84% intervals (per parameter)
-    q16, q50, q84 = np.percentile(flat, [16, 50, 84], axis=0)
-
-    # Highest posterior probability among draws
-    idx_opt = int(np.argmax(logp))
-    theta_opt = flat[idx_opt].copy()
-    print("\n--- Posterior summaries ---")
-    labels = make_param_labels(params)         # one label per dimension in theta
-    for k, SECARpar in enumerate( labels ):
-        print(f"{SECARpar:12s}: median={q50[k]: .6g}  [16%,84%]=[{q16[k]: .6g}, {q84[k]: .6g}]")
-    print(f"\nHighest posterior probability among draws: {theta_opt} with a metric = {-np.max(logp):.1f}\n")
-
-    # Show best fit result
-    values_opt = convert_theta_to_values(params, theta_opt)
-    tuneChanges, initialDistChanges, run_cosy_flag = prepareMCChanges(params, values_opt)
-    metric = 0
-    for groupImages in images2compare:
-        group = groupImages[0]
-        imagesByGroup = groupImages[1]
-        initialDistribution = { 'type': 'aperture',   # Generates nRays originating from a circular target and determines which are transmitted through a circular downstream aperture.
-                                'nRays': 5,
-                                'target_alignment' :   {"X": groupsInfo[group]['target_alignment']['X'], "Y": groupsInfo[group]['target_alignment']['Y'], "R": groupsInfo[group]['target_alignment']['R']},
-                                'aperture_alignment' : {"X": groupsInfo[group]['pp_alignment']['X'], "Y": groupsInfo[group]['pp_alignment']['Y'], "R": groupsInfo[group]['pp_alignment']['R'], 'separation_distance': 0.48619},
-                                'angles' : {'mu_x' : -0.12/1000, 'mu_y' : 0/1000, 'sigma' : 10.24/1000},    # mu_y = 15 mrad
-                                'dE' : {'option': 'normal', 'param' : {'mu':  2/100, 'sigma': 8/100}},      # 2, 8
-                                'dZ' : {'option': 'fixed',  'param': 0}, }
-        if len(initialDistChanges) != 0:  # Make changes to initialDistribution if needed
-            initialDistribution['angles']['mu_y'] = initialDistChanges[0][1]
-        all_x, all_ax, all_y, all_ay, all_dE, transmitted_x, transmitted_y, transmission_indices, chamber_names, beampipes = \
-            runECAT( initialDistribution = initialDistribution, run_cosy_flag = run_cosy_flag, tuneChanges = tuneChanges,
-                save_rays_flag = False, final_index = viewers[f"{np.max( [int(v) for v in imagesByGroup] )}"]["index"] )
-
-        metric = metric + load_projection(imagesByGroup, group, all_x = all_x, all_y = all_y, transmission_indices = transmission_indices,
-            plot = False, metric = 'chisq_1d')
-    print(f"\nHighest posterior probability among draws (again): {values_opt} with a metric = {metric:.1f}\n")
-
-    # Create corner plot
-    fig = corner.corner(flat, labels=labels, quantiles=[0.16, 0.50, 0.84], show_titles=True,
-        title_fmt=".3g", truths=theta_opt )
-    fig.savefig(f"{results_directory}/posterior_corner.png", dpi=200, bbox_inches="tight")
-    plt.close(fig)

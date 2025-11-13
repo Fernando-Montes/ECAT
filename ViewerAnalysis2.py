@@ -22,7 +22,7 @@ def make_param_labels(params):
             labels.append(f"{p['elem']} {p['par']} [mm]")
             paramScale.append(1000)  # meters to mm
         elif p['par'] == "dB" or p['par'] == "B_SC":
-            name = p['elem'][:2]
+            name = p['elem'][:3]
             labels.append(f"{name} mistuned [%]")
             paramScale.append(100)  # fraction to percentage
         elif p['par'] == "mu_y":
@@ -49,11 +49,13 @@ def PlotMCMCresults(params, images2compare = None, plotParameters = True):
         raise RuntimeError("chain.h5 contains no samples yet.")
 
     # --- Extract samples (discard burn-in, thin a bit) ---
-    burn = iters // 2
-    thin = 1
-    # Get flattened samples and log-probabilities
-    flat = backend.get_chain(discard=burn, thin=thin, flat=True)          # (Nsamples, ndim)
-    logp = backend.get_log_prob(discard=burn, thin=thin, flat=True)       # (Nsamples,)
+    # burn = iters // 2
+    # thin = 1
+    # # Get flattened samples and log-probabilities
+    # flat = backend.get_chain(discard=burn, thin=thin, flat=True)          # (Nsamples, ndim)
+    # logp = backend.get_log_prob(discard=burn, thin=thin, flat=True)       # (Nsamples,)
+    flat = backend.get_chain(flat=True)          # (Nsamples, ndim)
+    logp = backend.get_log_prob(flat=True)       # (Nsamples,)
 
     if flat.size == 0:
         raise RuntimeError("No samples left after burn/thin. Increase nsteps or reduce burn/thin.")
@@ -96,8 +98,9 @@ def PlotMCMCresults(params, images2compare = None, plotParameters = True):
         # Show best fit result
         values_opt = convert_theta_to_values(params, theta_opt_orig)
         tuneChanges, initialDistChanges, run_cosy_flag = prepareMCChanges(params, values_opt)
-        # tuneChangesPrev = [['Q1', 'Y', -0.000346253403085111], ['Q1', 'B_SC', 0.012213815413722453], ['Q2', 'Y', -0.0004883738170837214], ['Q2', 'B_SC', 0.014579957615870023], ['B2 Exit', 'dB', -0.0029242376594304244], ['Q3', 'B_SC', 0.00455452181737245], ['Q4', 'B_SC', 0.0028608744765512744], ['Q5', 'B_SC', -0.02148827880573774]]
-        # tuneChanges = tuneChangesPrev + tuneChanges
+        tuneChangesPrev = [['Q1', 'Y', -0.0004005534288656388], ['Q1', 'B_SC', 0.01016527258784548], ['Q2', 'Y', -0.0005769743274796191], ['Q2', 'B_SC', -0.006159636853166115 ], ['Q3', 'B_SC', 0.00036907811424478215], ['Q4', 'B_SC', -0.013252101342486288], ['Q5', 'B_SC', 0.006975071308727706], ['B3 Exit', 'dB', +0.01], ['B4 Exit', 'dB', +0.01], ['Q6', 'B_SC', -0.026865801259426076], ['Q7', 'B_SC', -0.006350239818653578], ['WF1 Exit', 'dB', -0.0125], \
+                        ['B5 Exit', 'dB', -0.005], ['B6 Exit', 'dB', -0.005], ['WF2 Exit', 'dB', -0.005]]
+        tuneChanges = tuneChangesPrev + tuneChanges
         # tuneChanges = None      # uncomment this to run nominal optics
         # run_cosy_flag = False   # uncomment this to run nominal optics
         metric = 0
@@ -125,7 +128,7 @@ def PlotMCMCresults(params, images2compare = None, plotParameters = True):
             run_cosy_flag = False # Only needs to run cosy once for every MCMC iteration
             metric = metric + load_projection(imagesByGroup, group, all_x = all_x, all_y = all_y, transmission_indices = transmission_indices,
                 plot = True, metric = 'chisq_1d', save_fig = True)
-        # print(metric)
+        print(metric/160000.0)
         print(f"\nHighest posterior probability among draws (again): {values_opt} with a metric = {metric:.1f}\n")
 
     # Create corner plot
@@ -135,28 +138,34 @@ def PlotMCMCresults(params, images2compare = None, plotParameters = True):
     plt.close(fig)
 
 params = [
-    {'elem': 'initialDist', 'par': 'mu_y'},
-    {'elem': 'initialDist', 'par': 'mu'},
-    {'elem': 'initialDist', 'par': 'sigma'},
-    {'elem': 'Q1',          'par': 'Y'},
-    {'elem': 'Q1',          'par': 'B_SC'},
-    {'elem': 'Q2',          'par': 'Y'},
-    {'elem': 'Q2',          'par': 'B_SC'},
-    #{'elem': '1515',        'par': 'dist'},
-    #{'elem': 'B1',          'par': 'Y'},
-    #{'elem': 'B1 Exit',     'par': 'dB'},
-    #{'elem': 'B2',          'par': 'Y'},
-    {'elem': 'B2 Exit',     'par': 'dB'},
-    {'elem': 'Q3',          'par': 'B_SC'},
-    {'elem': 'Q4',          'par': 'B_SC'},
-    {'elem': 'Q5',          'par': 'B_SC'},
-    {'elem': 'B3 Exit',     'par': 'dB'},
-    {'elem': 'B4 Exit',     'par': 'dB'},
-    {'elem': 'Q6',          'par': 'B_SC'},
-    {'elem': 'Q7',          'par': 'B_SC'},
-    {'elem': 'WF1 Exit',    'par': 'dB'}
+    # {'elem': 'initialDist', 'par': 'mu_y'},
+    # {'elem': 'initialDist', 'par': 'mu'},
+    # {'elem': 'initialDist', 'par': 'sigma'},
+    # {'elem': 'Q1',          'par': 'Y'},
+    # {'elem': 'Q1',          'par': 'B_SC'},
+    # {'elem': 'Q2',          'par': 'Y'},
+    # {'elem': 'Q2',          'par': 'B_SC'},
+    # {'elem': '1515',        'par': 'dist'},
+    # {'elem': 'B1',          'par': 'Y'},
+    # {'elem': 'B1 Exit',     'par': 'dB'},
+    # {'elem': 'B2',          'par': 'Y'},
+    # {'elem': 'B2 Exit',     'par': 'dB'},
+    # {'elem': 'Q3',          'par': 'B_SC'},
+    # {'elem': 'Q4',          'par': 'B_SC'},
+    # {'elem': 'Q5',          'par': 'B_SC'},
+    # {'elem': 'B3 Exit',     'par': 'dB'},
+    # {'elem': 'B4 Exit',     'par': 'dB'},
+    # {'elem': 'Q6',          'par': 'B_SC'},
+    # {'elem': 'Q7',          'par': 'B_SC'},
+    # {'elem': 'WF1 Exit',    'par': 'dB'},
+    {'elem': 'Q8',          'par': 'B_SC'},
+    {'elem': 'Q9',          'par': 'B_SC'},
+    {'elem': 'Q10',          'par': 'B_SC'},
+    {'elem': 'Q11',          'par': 'B_SC'}
 ]
 #images2compare = [ ["7", ["1515", "1542"]], ["8", ["1515", "1542"]], ["9", ["1542"]], ["10", ["1515", "1542"]], ["14", ["1515", "1542"]], ["15", ["1515", "1542"]], ["16", ["1515"]] ] #, ["17", ["1515"]] ]
 #images2compare = [ ["7", ["1638"]], ["8", ["1638"]], ["9", ["1638"]], ["10", ["1638"]], ["13", ["1638"]], ["14", ["1638"]], ["15", ["1638"]] ]
-images2compare = [ ["7", ["1515", "1542", "1638"]], ["8", ["1515", "1542", "1638"]], ["9", ["1542", "1638"]], ["10", ["1515", "1542", "1638"]], ["13", ["1638"]], ["14", ["1515", "1542", "1638"]], ["15", ["1515", "1542", "1638"]], ["16", ["1515"]] ]
+#images2compare = [ ["7", ["1515", "1542", "1638"]], ["8", ["1515", "1542", "1638"]], ["9", ["1542", "1638"]], ["10", ["1515", "1542", "1638"]], ["13", ["1638"]], ["14", ["1515", "1542", "1638"]], ["15", ["1515", "1542", "1638"]], ["16", ["1515"]] ]
+images2compare = [ ["7", ["1688", "1783"]], ["8", ["1688", "1783"]],  ["9", ["1688", "1783"]], ["10", ["1783"]], ["14", ["1688", "1783"]],  ["15", ["1688", "1783"]] ]
+
 PlotMCMCresults(params, images2compare = images2compare)
