@@ -1,4 +1,4 @@
-import io, os, re, pickle, zipfile
+import io, os, re, pickle, zipfile, matplotlib
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -12,6 +12,7 @@ from scipy.integrate import trapezoid
 from shapely.geometry.polygon import orient
 from matplotlib.gridspec import GridSpec
 from matplotlib.ticker import PercentFormatter
+from matplotlib.lines import Line2D
 
 # Import Cython functions for ray generation and processing [See "ray_functions.pyx" & "setup.py"]
 from ray_functions import stepped_uniform_rays, mixed_rays, aperture_rays, process_all_rays, extract_coordinates
@@ -80,7 +81,7 @@ def prepareCOSYchanges(params, values):
                        cosy_lines[ params[i]['elem'] ][ 'dist' ]['text2']
                 cosyChanges.append( [ cosy_lines[ params[i]['elem'] ][ 'dist' ]['line'][1] , text] )
             elif params[i]['par'] == 'B_SC':
-                cosyFile = cosyFile + "B" + str(f"{100*values[i]:.1f}")
+                cosyFile = cosyFile + "B" + str(f"{100*values[i]:.2f}")
                 val = cosy_lines[ params[i]['elem'] ][ 'B_SC' ]['nom']+values[i]
                 text = cosy_lines[ params[i]['elem'] ][ 'B_SC' ]['text1'] + f"{val:.6f}" + \
                        cosy_lines[ params[i]['elem'] ][ 'B_SC' ]['text2']
@@ -115,7 +116,7 @@ def prepareCOSYchanges(params, values):
                 text = cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text1'] + f"{-val1:.6f}" + " " + f"{-val2:.6f}"  + \
                        cosy_lines[ params[i]['elem'] ][ 'dXY' ]['text2']
                 cosyChanges.append( [ cosy_lines[ params[i]['elem'] ][ 'dXY' ]['line'][1] , text] )
-    cosyFile = cosyFile[-30:]     # Did this since COSY has a max number of characters to read a cosy file name
+    cosyFile = cosyFile[-40:]     # Did this since COSY has a max number of characters to read a cosy file name
     return cosyChanges, cosyFile
 
 # Function that creates COSY file if needed
@@ -332,6 +333,7 @@ def generateInitialDistribution(initialDistribution):
         For dE, dZ:
             _ : {'option' : 'fixed',    'param' : # }
             _ : {'option' : 'uniform',  'param' : {'min': #, 'max': #}
+            _ : {'option' : 'stepped',  'param' : {'min': #, 'max': #, 'steps': #}
             _ : {'option' : 'normal',   'param' : {'mu': #, 'sigma': #}
             _ : {'option' : 'skewed',   'param' : {'alpha': #, 'mu': #, 'sigma': #}
         Example:
@@ -365,6 +367,12 @@ def generateInitialDistribution(initialDistribution):
             theta_mu_x = theta_mu_x, theta_mu_y = theta_mu_y, theta_sigma = theta_sigma,
             dE_option = dE_option, dE_params = dE_params, dz_option = dz_option, dz_params = dz_params,
             nRays = nRays )
+
+    if initialDistribution['type'] == 'external':
+        ray_file = 'target_rays.pkl'
+        with open(ray_file, 'rb') as f:
+            rays = pickle.load(f)
+            # print(rays[0])
 
     return rays
 
@@ -425,7 +433,7 @@ def checkInitialDistribution(pepperpot = False):
 
     if pepperpot:
         separation_distance = 0.48619
-        aperture_alignment = {"X": -0.448502 / 1000, "Y": -0.449370 / 1000, "R": 10.46 / 1000}
+        aperture_alignment = {"X": 0.311246954/1000, "Y": 8.5930652/1000, "R": 0.1/1000}
 
         xp = [x[i] - separation_distance*aX[i]  for i in range(len(x))]
         yp = [y[i] + separation_distance*aY[i]  for i in range(len(y))]
@@ -709,6 +717,7 @@ def plot_rays(x_list, y_list, z_coordinates, element_names = None, highlight_foc
     axs[0].set_xlabel("z-Position Along Beamline (m)")
     axs[0].set_ylabel("x-Position (m)")
     axs[0].set_xlim(0, z_coordinates[-1])
+    axs[0].axhline(y=0, color='grey', linestyle="--", linewidth=1)
 
     # Plot y trajectories
     for y in y_list:
@@ -716,6 +725,7 @@ def plot_rays(x_list, y_list, z_coordinates, element_names = None, highlight_foc
     axs[1].set_xlabel("z-Position Along Beamline (m)")
     axs[1].set_ylabel("y-Position (m)")
     axs[1].set_xlim(0, z_coordinates[-1])
+    axs[1].axhline(y=0, color='grey', linestyle="--", linewidth=1)
 
     # Optionally highlight focal plane regions
     if highlight_focal_planes and element_names is not None:
@@ -755,6 +765,148 @@ def plot_rays(x_list, y_list, z_coordinates, element_names = None, highlight_foc
         return plt.show()
     else:
         return fig
+
+def plot_rays_colored(x_list, y_list, z_coordinates, color_dict = None, element_names = None, highlight_focal_planes = True, return_plt = True):
+    fig, axs = plt.subplots(2, figsize=(12, 8))
+    fig.tight_layout(pad=4)
+
+    fp_color = (184 / 255, 140 / 255, 219 / 255)  # consistent purple
+
+    legend_handles = []
+    legend_info = []
+
+    n_rays = len(x_list)
+
+    if color_dict is None:
+        ray_colors = ['black'] * n_rays
+    else:
+        coords = np.asarray(color_dict['color_list'])   # one value per ray
+        n_bins = color_dict['n_bins']
+        color_key = color_dict['color_key']
+
+        if len(coords) != n_rays:
+            raise ValueError(
+                "color_dict['color_list'] must have one entry per ray."
+            )
+
+        min_val = np.min(coords)
+        max_val = np.max(coords)
+
+        if min_val == max_val:
+            groups = np.zeros(len(coords), dtype=int)
+            bounds = np.array([min_val, max_val])
+            cmap = matplotlib.colormaps.get_cmap('viridis').resampled(max(n_bins, 1))
+            ray_colors = [cmap(0) for _ in groups]
+
+            label = f"{color_key}: {min_val:.3g}"
+            legend_handles = [Line2D([0], [0], color=cmap(0), lw=2, label=label)]
+            legend_info = [{
+                "bin": 0,
+                "color": cmap(0),
+                "label": label,
+                "lower": min_val,
+                "upper": max_val
+            }]
+        else:
+            bounds = np.linspace(min_val, max_val, n_bins + 1)
+
+            # Bin index for each ray: 0, 1, ..., n_bins-1
+            groups = np.digitize(coords, bounds[1:-1], right=False)
+
+            cmap = matplotlib.colormaps.get_cmap('viridis').resampled(n_bins)
+            ray_colors = [cmap(g) for g in groups]
+
+            # Build legend entries from bin ranges
+            for i in range(n_bins):
+                lower = bounds[i]
+                upper = bounds[i + 1]
+
+                if i < n_bins - 1:
+                    label = f"{color_key}: [{lower:.3g}, {upper:.3g})"
+                else:
+                    label = f"{color_key}: [{lower:.3g}, {upper:.3g}]"
+
+                color = cmap(i)
+
+                legend_handles.append(
+                    Line2D([0], [0], color=color, lw=2, label=label)
+                )
+                legend_info.append({
+                    "bin": i,
+                    "color": color,
+                    "label": label,
+                    "lower": lower,
+                    "upper": upper
+                })
+
+    # Plot x trajectories
+    for i, x in enumerate(x_list):
+        axs[0].plot(z_coordinates[:len(x)], x, color=ray_colors[i], linewidth=1)
+
+    axs[0].set_xlabel("z-Position Along Beamline (m)")
+    axs[0].set_ylabel("x-Position (m)")
+    axs[0].set_xlim(0, z_coordinates[-1])
+    axs[0].axhline(y=0, color='grey', linestyle="--", linewidth=1)
+
+    # Plot y trajectories
+    for i, y in enumerate(y_list):
+        axs[1].plot(z_coordinates[:len(y)], y, color=ray_colors[i], linewidth=1)
+
+    axs[1].set_xlabel("z-Position Along Beamline (m)")
+    axs[1].set_ylabel("y-Position (m)")
+    axs[1].set_xlim(0, z_coordinates[-1])
+    axs[1].axhline(y=0, color='grey', linestyle="--", linewidth=1)
+
+    # Optionally highlight focal plane regions
+    if highlight_focal_planes and element_names is not None:
+        focal_planes = {
+            "FP 1": ("FP1 Slits", "VD1542"),
+            "FP 2": ("FP2 Slits", "VD1638"),
+            "FP 3": ("FP3 Slits", "VD1783"),
+            "FP 4": ("FP4 Slits", "DSSD"),
+        }
+
+        for ax in axs:
+            for label, (start_key, end_key) in focal_planes.items():
+                try:
+                    start_idx = next(i for i, name in enumerate(element_names) if start_key in name)
+                    end_idx = next(i for i, name in enumerate(element_names) if end_key in name)
+                except StopIteration:
+                    print(f"Warning: Could not find '{start_key}' or '{end_key}' in element_names for {label}")
+                    continue
+
+                z_start = z_coordinates[start_idx]
+                z_end = z_coordinates[end_idx]
+
+                ax.axvspan(z_start, z_end, color=fp_color, alpha=0.2)
+
+                y0, y1 = ax.get_ylim()
+                y_offset = y0 + 0.95 * (y1 - y0)
+                ax.text(
+                    z_start - 0.02 * z_coordinates[-1],
+                    y_offset,
+                    label,
+                    verticalalignment='top',
+                    horizontalalignment='right',
+                    fontweight='bold',
+                    color='black',
+                    fontsize=10,
+                    alpha=0.7
+                )
+
+    # Add color legend if applicable
+    # if legend_handles:
+    #     axs[0].legend(handles=legend_handles, loc='best', title="Ray color groups")
+
+    fig.suptitle("Ray Tracing Along Beamline")
+
+    for ax in axs:
+        ax.set_ylim(-0.1, 0.1)
+    if return_plt:
+        plt.show()
+        return legend_info
+    else:
+        return fig, legend_info
 
 # Function for plotting beam positions using 2D histograms
 def plotInterestingCS(displaySec, section, all_x, all_y, transmission_indices, saveFile = None):

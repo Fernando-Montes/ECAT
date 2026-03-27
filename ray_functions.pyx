@@ -96,6 +96,8 @@ cdef double sample_dist(str option, dict params, int seed):
         return np.random.normal(params['mu'], params['sigma'])
     elif option == 'uniform':
         return np.random.uniform(params['min'], params['max'])
+    elif option == 'stepped':
+        return np.random.choice( np.linspace(params['min'], params['max'], params['steps']) )
     elif option == 'skewed':
         return skewnorm.rvs(params['alpha'], loc=params['mu'], scale=params['sigma'])
     else:
@@ -155,7 +157,6 @@ def aperture_rays(target_radius, target_offset_x, target_offset_y,
         ##### SAMPLE THE ANGULAR DISTRIBUTION OUT OF THE TARGET (Assumes same σ) #####
         theta_x = np.random.normal(theta_mu_x, theta_sigma, N)
         theta_y = np.random.normal(theta_mu_y, theta_sigma, N)
-        #theta_y = np.random.uniform(10/1000, 20/1000, N)
 
         ##### DEFINE DIRECTION VECTORS & NORMALIZE TO GET A PROPER UNIT DIRECTION #####
         dx, dy, dz = theta_x, theta_y, 1.0
@@ -166,8 +167,25 @@ def aperture_rays(target_radius, target_offset_x, target_offset_y,
         scale = separation_distance / dir_z
         x_ap = x_target + (dir_x * scale)
         y_ap = y_target + (dir_y * scale)
-        r_ap = np.sqrt((x_ap - aperture_offset_x)**2 + (y_ap - aperture_offset_y)**2)
-        accepted_rays_index = np.where(r_ap < aperture_radius)[0]
+
+        # Convert inputs to arrays if they are scalars
+        aperture_offset_xs = np.atleast_1d(aperture_offset_x)
+        aperture_offset_ys = np.atleast_1d(aperture_offset_y)
+        aperture_radii     = np.atleast_1d(aperture_radius)
+
+        # Sanity check
+        if not (len(aperture_offset_xs) == len(aperture_offset_ys) == len(aperture_radii)):
+            raise ValueError("Aperture parameter lengths must match")
+
+        # Accepted if inside ANY aperture
+        mask_any = np.zeros(N, dtype=bool)
+        for ax, ay, ar in zip(aperture_offset_xs, aperture_offset_ys, aperture_radii):
+            r_ap = np.sqrt((x_ap - ax)**2 + (y_ap - ay)**2)
+            mask_any |= (r_ap < ar)
+        accepted_rays_index = np.where(mask_any)[0]
+
+        # r_ap = np.sqrt((x_ap - aperture_offset_x)**2 + (y_ap - aperture_offset_y)**2)
+        # accepted_rays_index = np.where(r_ap < aperture_radius)[0]
 
         # Angular information of transmitted rays
         theta_vals = np.arccos(dir_z)

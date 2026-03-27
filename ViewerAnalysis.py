@@ -100,6 +100,26 @@ groupsInfo = {
         'pp_alignment' : {"X": 10.30665605 / 1000, "Y": -0.18692655 / 1000, "R": 0.5 / 1000, "label": "1 MM (-20 mrad Position) -2% dE/E"},
         'fp1_slits' : {"slits_mm": (-7, 7),    "label": "FP1 Slits: ±7 mm"},
         },
+    # '18': {
+    #     'target_alignment' : {"X": 0.03055 / 1000, "Y": -0.01099 / 1000, "R": 0.75 / 1000},
+    #     'pp_alignment' : {"X": 0.311246954 / 1000, "Y": 8.5930652  / 1000, "R": 0.5 / 1000, "label": "3 hole (+Y-position grp 18) -2% dE/E"},
+    #     'fp1_slits' : {"slits_mm": (-7, 7),    "label": "FP1 Slits: ±7 mm"},
+    #     },
+    '18': {
+        'target_alignment' : {"X": 0.03055 / 1000, "Y": -0.01099 / 1000, "R": 0.75 / 1000},
+        'pp_alignment' : {"X": -0.253681624/1000, "Y": -4.113076555/1000, "R": 0.5/1000, "label": "3 hole (-Y-position grp 18) -2% dE/E"},
+        'fp1_slits' : {"slits_mm": (-7, 7),    "label": "FP1 Slits: ±7 mm"},
+        },
+    # '18': {
+    #     'target_alignment' : {"X": 0.03055 / 1000, "Y": -0.01099 / 1000, "R": 0.75 / 1000},
+    #     'pp_alignment' : {"X": [0.311246954/1000, -6.355652212/1000, -0.253681624/1000], "Y": [8.5930652/1000, 2.7191336/1000, -4.113076555/1000], "R": [0.5/1000, 0.5/1000, 0.5/1000], "label": "3 hole Grp 18) -2% dE/E"},
+    #     'fp1_slits' : {"slits_mm": (-7, 7),    "label": "FP1 Slits: ±7 mm"},
+    #     },
+    '19': {
+        'target_alignment' : {"X": 0.03055 / 1000, "Y": -0.01099 / 1000, "R": 0.75 / 1000},
+        'pp_alignment' : {"X": 0.071253860 / 1000, "Y": 7.806471915  / 1000, "R": 0.5 / 1000, "label": "3 hole (+Y-position grp 19) -2% dE/E"},
+        'fp1_slits' : {"slits_mm": (-7, 7),    "label": "FP1 Slits: ±7 mm"},
+        },
     }
 
 # Dictionary that sets the max. variance a given type of parameter can possibly have (to be used as bounds in the
@@ -155,7 +175,7 @@ def load_2d_image(gorup_number, viewer, image_path, plot = True, save_path = Non
     return corrected_full_image, xf_range, yf_range
 
 # Loading projections from csv files AND/OR returns metric value when comparing viewer and ECAT simulations
-def load_projection(imagesByGroup, group_number, all_x = None, all_y = None, transmission_indices = None, plot = True, metric = None, save_fig = False):
+def load_projection(imagesByGroup, group_number, all_x = None, all_y = None, transmission_indices = None, plot = True, metric = None, save_fig = False, all_ax = None, all_dE = None):
     '''
     metric : metric to compare viewer images against ECAT results. Can be: 'chisq_1d (X and Y projections of a viewer), chisq_2d (viewer)'
     returns metric value
@@ -176,6 +196,13 @@ def load_projection(imagesByGroup, group_number, all_x = None, all_y = None, tra
             x_intensity = df_x.iloc[:, 1].to_numpy()
             y_pos = df_y.iloc[:, 0].to_numpy()
             y_intensity = df_y.iloc[:, 1].to_numpy()
+
+            x_mean = np.average(x_pos, weights=x_intensity)
+            x_sigma = np.sqrt( np.average((x_pos-x_mean)**2, weights=x_intensity) )
+            y_mean = np.average(y_pos, weights=y_intensity)
+            y_sigma = np.sqrt( np.average((y_pos-y_mean)**2, weights=y_intensity) )
+            print(f"VIEWER Group {group_number} - {viewer}, X mean [mm]: {x_mean:.2f},  X sigma [mm]: {x_sigma:.2f}")
+            print(f"VIEWER Group {group_number} - {viewer}, Y mean [mm]: {y_mean:.2f},  Y sigma [mm]: {y_sigma:.2f}")
 
             # Creating 1d viewer histograms (binned)
             x_bins = 50
@@ -205,15 +232,33 @@ def load_projection(imagesByGroup, group_number, all_x = None, all_y = None, tra
                 posS = element_names_stripped.index('FP1 Slits')  # position slits
                 if posS < posV:   # Viewer is after fp1 slits
                     x = []
+                    y = []
+                    aX = []
+                    dE = []
                     valid_indices = []
                     for i in range(len(all_x)):
                         if transmission_indices[i] >= posV \
-                          and groupsInfo[group_number]['fp1_slits']["slits_mm"][0] <= -all_x[i][posS]*1000 <= groupsInfo[group_number]['fp1_slits']["slits_mm"][1]:
+                          and groupsInfo[group_number]['fp1_slits']["slits_mm"][0] <= -all_x[i][posS]*1000 \
+                          and -all_x[i][posS]*1000 <= groupsInfo[group_number]['fp1_slits']["slits_mm"][1]:
                             valid_indices.append(i)
                             x.append( -all_x[i][posV]*1000 )
+                            aX.append( -all_ax[i][0]*1000 )   # Append the angles at target that arrive at this location!
+                            y.append( all_y[i][posV]*1000 )
+                            dE.append( all_dE[i][posV]*100 )
                     x = np.array(x)
+                    aX = np.array(aX)
+                    y = np.array(y)
+                    dE = np.array(dE)
                 else:
-                    x = np.array([-xx[posV]*1000 for i, xx in enumerate(all_x) if transmission_indices[i] >= posV]) # in mm
+                    x  = np.array([-xx[posV]*1000 for i, xx in enumerate(all_x)  if transmission_indices[i] >= posV]) # in mm
+                    aX = np.array([ -ax[0]*1000    for i, ax in enumerate(all_ax) if transmission_indices[i] >= posV]) # in mm
+                    y  = np.array([yy[posV]*1000 for i, yy in enumerate(all_y)  if transmission_indices[i] >= posV]) # in mm
+                    dE  = np.array([de[posV]*100 for i, de in enumerate(all_dE) if transmission_indices[i] >= posV]) # in mm
+                print(f"ECAT Group {group_number} - {viewer}, X mean [mm]: {np.mean(x):.2f},  X std [mm]: {np.std(x):.2f}")
+                print(f"ECAT Group {group_number} - Arriving at {viewer}, aX at target mean [mm]: {np.mean(aX):.2f},  aX std [mm]: {np.std(aX):.2f}")
+                print(f"ECAT Group {group_number} - {viewer}, Y mean [mm]: {np.mean(y):.2f},  Y std [mm]: {np.std(y):.2f}")
+                print(f"ECAT Group {group_number} - {viewer}, dE mean [mm]: {np.mean(dE):.2f},  dE std [mm]: {np.std(dE):.2f}")
+
                 # Scale ecat data to viewer counts
                 x_edges = np.histogram_bin_edges(x_vd, bins=x_bins)
                 vd_counts, _ = np.histogram(x_vd, bins=x_edges)
@@ -234,9 +279,9 @@ def load_projection(imagesByGroup, group_number, all_x = None, all_y = None, tra
             if all_y is not None and all_x is not None:
                 # Find position index using viewer
                 if element_names_stripped.index('FP1 Slits') < posV:   # Viewer is after fp1 slits
-                    y = np.array([-yy[posV]*1000 for i, yy in enumerate(all_y) if i in valid_indices]) # in mm
+                    y = np.array([yy[posV]*1000 for i, yy in enumerate(all_y) if i in valid_indices]) # in mm
                 else:
-                    y = np.array([-yy[posV]*1000 for i, yy in enumerate(all_y) if transmission_indices[i] >= posV]) # in mm
+                    y = np.array([yy[posV]*1000 for i, yy in enumerate(all_y) if transmission_indices[i] >= posV]) # in mm
                 # Scale ecat data to viewer counts
                 y_edges = np.histogram_bin_edges(y_vd, bins=y_bins)
                 vd_counts, _ = np.histogram(y_vd, bins=y_edges)
@@ -304,9 +349,7 @@ def load_projection(imagesByGroup, group_number, all_x = None, all_y = None, tra
                 axs[1,1].set_xlabel('X (mm)')
                 axs[1,1].set_ylabel('Y (mm)')
                 axs[1,1].set_title("ECAT", fontweight = 'bold')
-
             plt.tight_layout()
-
             if save_fig:
                 save_path = f"{results_directory}/imageCompared_Group{group_number}_VD{viewer}"
                 plt.savefig(save_path, dpi = 300)
@@ -319,6 +362,173 @@ def load_projection(imagesByGroup, group_number, all_x = None, all_y = None, tra
                 metric_value = metric_value + chisq_x + chisq_y
 
     return metric_value
+
+# Loading projections from csv files and obtain information from viewer data ONLY
+def load_projection_viewer(images2compare, plot = True):
+
+    for groupImages in images2compare:   # go group by group
+        group_number = groupImages[0]
+        imagesByGroup = groupImages[1]
+        group_path = f"PartD_ViewerAnalysis/Group{group_number}"
+        for viewer in imagesByGroup:   # go viewer by viewer
+            x_projection_path = os.path.join(group_path, f"VD{viewer}_Group{group_number}_xf_cosy.csv")
+            y_projection_path = os.path.join(group_path, f"VD{viewer}_Group{group_number}_yf_cosy.csv")
+            # Load 1d viewer projections and skip any lines starting with a '#'
+            df_x = pd.read_csv(x_projection_path, comment = "#")
+            df_y = pd.read_csv(y_projection_path, comment = "#")
+            # Extract the 1d viewer projections data
+            x_pos = -df_x.iloc[:, 0].to_numpy()
+            x_intensity = df_x.iloc[:, 1].to_numpy()
+            y_pos = df_y.iloc[:, 0].to_numpy()
+            y_intensity = df_y.iloc[:, 1].to_numpy()
+
+            x_mean = np.sum([x_pos[i]*x_intensity[i] for i in range(len(x_pos))])/np.sum(x_intensity)
+            y_mean = np.sum([y_pos[i]*y_intensity[i] for i in range(len(y_pos))])/np.sum(y_intensity)
+            print(f"Group {group_number} - {viewer}, X mean [mm]: {x_mean:.2f},  Y mean [mm]: {y_mean:.2f}")
+
+            # Creating 1d viewer histograms (binned)
+            x_bins = 50
+            x_scale = x_bins/len(x_pos)
+            x_intensityC = [i*x_scale for i in x_intensity]
+            x_intensityC_sum = np.sum(x_intensityC)
+            x_intensityC = [max(0, round(100*x_bins*i/x_intensityC_sum)) for i in x_intensityC]   # Scale binned viewer so sum is 100*x_bins
+            x_intensityC[0] = max(1, x_intensityC[0] )                                            # Making sure the extrems are included
+            x_intensityC[-1] = max(1, x_intensityC[-1] )                                          # Making sure the extrems are included
+            x_intensity  = [100*x_bins*i/x_intensityC_sum for i in x_intensity]                   # Scale orig viewer so agrees with binned
+            x_vd = [ p for p,n in zip(x_pos, x_intensityC) for _ in range(n) ]                    # list of positions to be histogrammed
+
+            y_bins = 50
+            y_scale = y_bins/len(y_pos)
+            y_intensityC = [i*y_scale for i in y_intensity]
+            y_intensityC_sum = np.sum(y_intensityC)
+            y_intensityC = [max(0, round(100*y_bins*i/y_intensityC_sum)) for i in y_intensityC]   # Scale binned viewer so sum is 100*y_bins
+            y_intensityC[0] = max(1, y_intensityC[0] )                                            # Making sure the extrems are included
+            y_intensityC[-1] = max(1, y_intensityC[-1] )                                          # Making sure the extrems are included
+            y_intensity  = [100*y_bins*i/y_intensityC_sum for i in y_intensity]                   # Scale orig viewer so agrees with binned
+            y_vd = [ p for p,n in zip(y_pos, y_intensityC) for _ in range(n) ]                    # list of positions to be histogrammed
+
+            if plot == True:
+                image_path = os.path.join(group_path, f"Group{group_number}_VD{viewer}_2D_cosy.npz")
+                # Load 2d viewer data
+                data = np.load(image_path)
+                corrected_full_image = data["corrected_full_image"]
+                corrected_full_image = corrected_full_image[:, ::-1]
+                x2d_range = data["xf_range"]
+                y2d_range = data["yf_range"]
+                fig, axs = plt.subplots(2, 2, figsize=(17,9))
+                labelPP    = groupsInfo[group_number]['pp_alignment']['label']
+                labelSlits = groupsInfo[group_number]['fp1_slits']['label']
+                plt.suptitle(f"Group {group_number} - {labelPP} - {labelSlits} - {viewer}\n(Viewing with the beam)", fontsize=16)
+
+                axs[0,0].plot(x_pos, x_intensity, label = 'Viewer original')
+                axs[0,0].hist(x_vd, bins=x_bins, histtype='step', color='blue', linewidth=4, label = 'Viewer binned')
+                axs[0,0].set_xlabel("X [mm]")
+                axs[0,0].set_ylabel("Intensity")
+                axs[0,0].set_title("X projection", fontweight = 'bold')
+                axs[0,0].set_xlim(min(x_pos), max(x_pos))
+                axs[0,0].legend(loc='best')   # place legend
+
+                axs[0,1].plot(y_pos, y_intensity, label = 'Viewer original')
+                axs[0,1].hist(y_vd, bins=y_bins, histtype='step', color='blue', linewidth=4, label = 'Viewer binned')
+                axs[0,1].set_xlabel("Y [mm]")
+                axs[0,1].set_ylabel("Intensity")
+                axs[0,1].set_title("Y projection", fontweight = 'bold')
+                axs[0,1].set_xlim(min(y_pos), max(y_pos))
+                axs[0,1].legend(loc='best')   # place legend
+
+                im = axs[1,0].imshow( corrected_full_image, extent = (-x2d_range[-1], -x2d_range[0], y2d_range[-1], y2d_range[0]), \
+                    cmap = 'viridis', aspect = 'auto')
+                cbar = fig.colorbar(im, ax=axs[1,0])
+                axs[1,0].set_xlim(-x2d_range[-1], -x2d_range[0])
+                axs[1,0].set_ylim(y2d_range[0], y2d_range[-1])
+                axs[1,0].set_xlabel('X (mm)')
+                axs[1,0].set_ylabel('Y (mm)')
+                axs[1,0].set_title("Viewer", fontweight = 'bold')
+
+                plt.tight_layout()
+                save_path = f"{results_directory}/imageCompared_Group{group_number}_VD{viewer}"
+                plt.savefig(save_path, dpi = 300)
+                plt.close()
+
+# Loading projections from ECAT simulations
+def load_projection_ecat(imagesByGroup, group_number, all_x = None, all_y = None, transmission_indices = None, plot = True, save_fig = False, all_ax = None, all_dE = None):
+
+    line = ""
+    for viewer in imagesByGroup:   # go viewer by viewer
+
+        if all_x is not None:
+            # Find position index of the viewer
+            posV = viewers[viewer]["index"]
+            posS = element_names_stripped.index('FP1 Slits')  # position slits
+            if posS < posV:   # Viewer is after fp1 slits
+                x = []
+                y = []
+                aX = []
+                dE = []
+                valid_indices = []
+                for i in range(len(all_x)):
+                    if transmission_indices[i] >= posV \
+                      and groupsInfo[group_number]['fp1_slits']["slits_mm"][0] <= -all_x[i][posS]*1000 \
+                      and -all_x[i][posS]*1000 <= groupsInfo[group_number]['fp1_slits']["slits_mm"][1]:
+                        valid_indices.append(i)
+                        x.append( -all_x[i][posV]*1000 )
+                        aX.append( -all_ax[i][0]*1000 )   # Append the angles at target that arrive at this location!
+                        y.append( all_y[i][posV]*1000 )
+                        dE.append( all_dE[i][posV]*100 )
+                x = np.array(x)
+                aX = np.array(aX)
+                y = np.array(y)
+                dE = np.array(dE)
+            else:
+                x  = np.array([-xx[posV]*1000 for i, xx in enumerate(all_x)  if transmission_indices[i] >= posV]) # in mm
+                aX = np.array([ -ax[0]*1000    for i, ax in enumerate(all_ax) if transmission_indices[i] >= posV]) # in mm
+                y  = np.array([yy[posV]*1000 for i, yy in enumerate(all_y)  if transmission_indices[i] >= posV]) # in mm
+                dE  = np.array([de[posV]*100 for i, de in enumerate(all_dE) if transmission_indices[i] >= posV]) # in mm
+            #print(f"ECAT Group {group_number} - {viewer}, X mean [mm]: {np.mean(x):.2f},  X std [mm]: {np.std(x):.2f}")
+
+        line = line + f"{np.mean(x):.2f} "
+
+        if all_y is not None and all_x is not None:
+            # Find position index using viewer
+            if element_names_stripped.index('FP1 Slits') < posV:   # Viewer is after fp1 slits
+                y = np.array([yy[posV]*1000 for i, yy in enumerate(all_y) if i in valid_indices]) # in mm
+            else:
+                y = np.array([yy[posV]*1000 for i, yy in enumerate(all_y) if transmission_indices[i] >= posV]) # in mm
+
+    	# Optionally plot the projection
+        if plot:
+            fig, axs = plt.subplots(2, 2, figsize=(17,9))
+            labelPP    = groupsInfo[group_number]['pp_alignment']['label']
+            labelSlits = groupsInfo[group_number]['fp1_slits']['label']
+            plt.suptitle(f"Group {group_number} - {labelPP} - {labelSlits} - {viewer}\n(Viewing with the beam)", fontsize=16)
+
+            if all_x is not None:
+                axs[0,0].hist(x, bins=50, histtype='step', linewidth=4, label='ecat', color = 'orange')
+            axs[0,0].set_xlabel("X [mm]")
+            axs[0,0].set_ylabel("Intensity")
+            axs[0,0].set_title("X projection", fontweight = 'bold')
+            axs[0,0].legend(loc='best')   # place legend
+
+            if all_y is not None:
+                axs[0,1].hist(y, bins=50, histtype='step', linewidth=4, label='ecat', color = 'orange')
+            axs[0,1].set_xlabel("Y [mm]")
+            axs[0,1].set_ylabel("Intensity")
+            axs[0,1].set_title("Y projection", fontweight = 'bold')
+            axs[0,1].legend(loc='best')   # place legend
+
+            if all_x is not None and all_y is not None:
+                axs[1,1].hist2d(x, y, bins=(50, 50), cmap='viridis')
+                axs[1,1].set_xlabel('X (mm)')
+                axs[1,1].set_ylabel('Y (mm)')
+                axs[1,1].set_title("ECAT", fontweight = 'bold')
+            plt.tight_layout()
+            if save_fig:
+                save_path = f"{results_directory}/imageCompared_Group{group_number}_VD{viewer}"
+                plt.savefig(save_path, dpi = 300)
+            else:
+                plt.show()
+
+    return line
 
 # Function that counts the number of SECAR parameters to be optimized and creates an array of bounds
 def countSECARparams(params):
@@ -387,8 +597,11 @@ def log_posterior(theta, params, pbounds, images2compare):
             values = convert_theta_to_values(params, theta)
             # tuneChangesPrev = [['Q1', 'Y', -0.000346253403085111], ['Q1', 'B_SC', 0.012213815413722453], ['Q2', 'Y', -0.0004883738170837214], ['Q2', 'B_SC', 0.014579957615870023], ['B2 Exit', 'dB', -0.0029242376594304244], ['Q3', 'B_SC', 0.00455452181737245], ['Q4', 'B_SC', 0.0028608744765512744], ['Q5', 'B_SC', -0.02148827880573774]]
             # tuneChangesPrev = [['Q1', 'Y', -0.0004005534288656388], ['Q1', 'B_SC', 0.01016527258784548], ['Q2', 'Y', -0.0005769743274796191], ['Q2', 'B_SC', -0.006159636853166115 ], ['Q3', 'B_SC', 0.00036907811424478215], ['Q4', 'B_SC', -0.013252101342486288], ['Q5', 'B_SC', 0.006975071308727706], ['B3 Exit', 'dB', +0.01], ['B4 Exit', 'dB', +0.01], ['Q6', 'B_SC', -0.026865801259426076], ['Q7', 'B_SC', -0.006350239818653578], ['WF1 Exit', 'dB', -0.0125] ]
-            tuneChangesPrev = [['Q1', 'Y', -0.0004005534288656388], ['Q1', 'B_SC', 0.01016527258784548], ['Q2', 'Y', -0.0005769743274796191], ['Q2', 'B_SC', -0.006159636853166115 ], ['Q3', 'B_SC', 0.00036907811424478215], ['Q4', 'B_SC', -0.013252101342486288], ['Q5', 'B_SC', 0.006975071308727706], ['B3 Exit', 'dB', +0.01], ['B4 Exit', 'dB', +0.01], ['Q6', 'B_SC', -0.026865801259426076], ['Q7', 'B_SC', -0.006350239818653578], ['WF1 Exit', 'dB', -0.0125], \
-                            ['B5 Exit', 'dB', -0.005], ['B6 Exit', 'dB', -0.005], ['WF2 Exit', 'dB', -0.005]]
+            #tuneChangesPrev = [['Q1', 'Y', -0.0004005534288656388], ['Q1', 'B_SC', 0.01016527258784548], ['Q2', 'Y', -0.0005769743274796191], ['Q2', 'B_SC', -0.006159636853166115 ], ['Q3', 'B_SC', 0.00036907811424478215], ['Q4', 'B_SC', -0.013252101342486288], ['Q5', 'B_SC', 0.006975071308727706], ['B3 Exit', 'dB', +0.01], ['B4 Exit', 'dB', +0.01], ['Q6', 'B_SC', -0.026865801259426076], ['Q7', 'B_SC', -0.006350239818653578], ['WF1 Exit', 'dB', -0.0125], ['B5 Exit', 'dB', -0.005], ['B6 Exit', 'dB', -0.005], ['WF2 Exit', 'dB', -0.005]]
+            #tuneChangesPrev = [ ['Q1', 'Y', -0.00037575856111501927], ['Q1', 'B_SC', 0.011297666768643053], ['Q2', 'Y',  -0.0005914722202508483], ['Q2', 'B_SC', -0.001612967967599542], ['Q3', 'B_SC', -0.02234262988240511], ['Q4', 'B_SC', 0.019381765829497632], ['Q5', 'B_SC', -0.0029501097224348145] ]
+            #tuneChangesPrev = [ ['Q1', 'Y', -0.00037575856111501927], ['Q1', 'B_SC', 0.011297666768643053], ['Q2', 'Y',  -0.0005914722202508483], ['Q2', 'B_SC', -0.001612967967599542], ['Q3', 'B_SC', -0.02234262988240511], ['Q4', 'B_SC', 0.019381765829497632], ['Q5', 'B_SC', -0.0029501097224348145], ['B3 Exit', 'dB', +0.001], ['B4 Exit', 'dB', +0.001], ['WF1 Exit', 'dB', 0.001], ['B5 Exit', 'dB', -0.0015], ['B6 Exit', 'dB', -0.0015], ['WF2 Exit', 'dB', -0.0004] ]
+            tuneChangesPrev = [['Q1', 'Y', -0.0004005534288656388], ['Q1', 'B_SC', 0.01016527258784548], ['Q2', 'Y', -0.0005769743274796191], ['Q2', 'B_SC', -0.006159636853166115 ], ['Q3', 'B_SC', 0.00036907811424478215], ['Q4', 'B_SC', -0.013252101342486288], ['Q5', 'B_SC', 0.006975071308727706], ['B3 Exit', 'dB', +0.01], ['B4 Exit', 'dB', +0.01], ['Q6', 'B_SC', -0.026865801259426076], ['Q7', 'B_SC', -0.006350239818653578], ['WF1 Exit', 'dB', -0.0125], ['B5 Exit', 'dB', -0.0053], ['B6 Exit', 'dB', -0.0053], ['WF2 Exit', 'dB', -0.0059]]
+
             tuneChanges, initialDistChanges, run_cosy_flag = prepareMCChanges(params, values)
             tuneChanges = tuneChangesPrev + tuneChanges
             metric = 0
